@@ -1,2 +1,2 @@
 build:
-	go build -ldflags "-X main.buildstamp=$(shell git rev-parse --short HEAD)@$(shell date -I)"
+	go build -ldflags "-X main.Version=$(shell git rev-parse --short HEAD)@$(shell date -I)"
