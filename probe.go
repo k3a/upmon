@@ -4,9 +4,7 @@ import (
 	"log"
 	"math/rand"
 	"net/http"
-	"regexp"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -20,8 +18,8 @@ var errCounter = prometheus.NewCounterVec(
 	[]string{"url", "error"},
 )
 
-var histogram = prometheus.NewHistogramVec(
-	prometheus.HistogramOpts{
+var reqSummary = prometheus.NewSummaryVec(
+	prometheus.SummaryOpts{
 		Name: "upmon_milliseconds",
 		Help: "Response time",
 	},
@@ -57,16 +55,9 @@ func (p *probe) run() {
 		} else if r.StatusCode != 200 {
 			errCounter.WithLabelValues(p.cfg.URL, "http-"+strconv.Itoa(r.StatusCode)).Inc()
 		} else {
-			histogram.WithLabelValues(p.cfg.URL).Observe(float64(respTimeMsec))
+			reqSummary.WithLabelValues(p.cfg.URL).Observe(float64(respTimeMsec))
 		}
 	}
-}
-
-var safeRE = regexp.MustCompile(`[^a-z0-9_]`)
-
-func counterIdentForURL(url string) string {
-	url = strings.ToLower(url)
-	return safeRE.ReplaceAllString(url, "_")
 }
 
 func newProbe(pcfg *probeCfg) *probe {
@@ -89,5 +80,5 @@ func newProbe(pcfg *probeCfg) *probe {
 
 func init() {
 	chkErr(prometheus.Register(errCounter))
-	chkErr(prometheus.Register(histogram))
+	chkErr(prometheus.Register(reqSummary))
 }
