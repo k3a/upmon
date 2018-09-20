@@ -54,6 +54,7 @@ func main() {
 
 	// register promhttp
 	http.Handle("/", promhttp.Handler())
+	http.Handle("/upmon", promhttp.Handler())
 
 	// listen
 	if len(cfg.Listen) == 0 {

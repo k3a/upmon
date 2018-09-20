@@ -12,11 +12,25 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
+var errCounter = prometheus.NewCounterVec(
+	prometheus.CounterOpts{
+		Name: "upmon_errors_total",
+		Help: "Number of failed http requests",
+	},
+	[]string{"url", "error"},
+)
+
+var histogram = prometheus.NewHistogramVec(
+	prometheus.HistogramOpts{
+		Name: "upmon_milliseconds",
+		Help: "Response time",
+	},
+	[]string{"url"},
+)
+
 type probe struct {
-	client  *http.Client
-	ticker  *time.Ticker
-	counter *prometheus.CounterVec
-	hist    prometheus.Histogram
+	client *http.Client
+	ticker *time.Ticker
 
 	cfg *probeCfg
 }
@@ -31,7 +45,7 @@ func (p *probe) run() {
 		startTime := time.Now()
 		r, err := p.client.Get(p.cfg.URL)
 		if err != nil {
-			p.counter.WithLabelValues("request").Inc()
+			errCounter.WithLabelValues(p.cfg.URL, "request").Inc()
 			log.Printf("Error making request to %s: %v\n", p.cfg.URL, err)
 			continue
 		}
@@ -39,11 +53,11 @@ func (p *probe) run() {
 		defer r.Body.Close()
 
 		if r.ContentLength == 0 {
-			p.counter.WithLabelValues("zero-len").Inc()
+			errCounter.WithLabelValues(p.cfg.URL, "zero-len").Inc()
 		} else if r.StatusCode != 200 {
-			p.counter.WithLabelValues("http-" + strconv.Itoa(r.StatusCode)).Inc()
+			errCounter.WithLabelValues(p.cfg.URL, "http-"+strconv.Itoa(r.StatusCode)).Inc()
 		} else {
-			p.hist.Observe(float64(respTimeMsec))
+			histogram.WithLabelValues(p.cfg.URL).Observe(float64(respTimeMsec))
 		}
 	}
 }
@@ -60,34 +74,20 @@ func newProbe(pcfg *probeCfg) *probe {
 
 	ticker := time.NewTicker(pcfg.Interval)
 
-	counter := prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: counterIdentForURL(pcfg.URL) + "_errors_total",
-			Help: pcfg.URL,
-		},
-		[]string{"error"},
-	)
-	chkErr(prometheus.Register(counter))
-
-	histogram := prometheus.NewHistogram(
-		prometheus.HistogramOpts{
-			Name: counterIdentForURL(pcfg.URL) + "_milliseconds",
-			Help: pcfg.URL,
-		},
-	)
-	chkErr(prometheus.Register(histogram))
-
 	p := &probe{
 		&http.Client{
 			Timeout: pcfg.Timeout,
 		},
 		ticker,
-		counter,
-		histogram,
 		pcfg,
 	}
 
 	go p.run()
 
 	return p
+}
+
+func init() {
+	chkErr(prometheus.Register(errCounter))
+	chkErr(prometheus.Register(histogram))
 }
