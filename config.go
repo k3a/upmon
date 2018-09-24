@@ -26,5 +26,6 @@ func (pcfg *probeCfg) validate() {
 type configStruct struct {
 	Listen string      `yaml:"listen,omitempty"`
 	Port   int         `yaml:"port,omitempty"`
+	Bearer string      `yaml:"bearer"` // authentication bearer
 	Probes []*probeCfg `yaml:"probes"`
 }

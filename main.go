@@ -6,6 +6,7 @@ import (
 	"math/rand"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -22,6 +23,29 @@ func chkErr(err error) {
 
 // Version holds compilation datetime
 var Version = ""
+
+func httpHandler(cfg *configStruct) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// no bearer token configured, return immediately
+		if len(cfg.Bearer) == 0 {
+			promhttp.Handler().ServeHTTP(w, r)
+			return
+		}
+
+		// auth token required
+		authHeader := strings.Split(r.Header.Get("Authorization"), " ")
+		if len(authHeader) == 2 && authHeader[1] == cfg.Bearer {
+			promhttp.Handler().ServeHTTP(w, r)
+			return
+		}
+
+		// auth token invalid
+		w.WriteHeader(http.StatusUnauthorized)
+		w.Write([]byte("unauthorized\n")) //nolint:gosec
+	})
+
+	return promhttp.Handler()
+}
 
 func main() {
 	if len(os.Args) <= 1 {
@@ -52,9 +76,8 @@ func main() {
 		newProbe(pcfg)
 	}
 
-	// register promhttp
-	http.Handle("/", promhttp.Handler())
-	http.Handle("/upmon", promhttp.Handler())
+	// register http handler
+	http.Handle("/", httpHandler(&cfg))
 
 	// listen
 	if len(cfg.Listen) == 0 {
