@@ -48,7 +48,7 @@ func (p *probe) run() {
 			continue
 		}
 		respTimeMsec := time.Since(startTime) / time.Millisecond
-		defer r.Body.Close()
+		r.Body.Close()
 
 		if r.ContentLength == 0 {
 			errCounter.WithLabelValues(p.cfg.URL, "zero-len").Inc()
